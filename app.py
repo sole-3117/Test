@@ -1,33 +1,61 @@
-from flask import Flask, request
-import threading
-from aiogram import Bot, Dispatcher, types
-import asyncio
-import os
+import pygame
+import sys
 
-TOKEN = os.getenv("BOT_TOKEN")  # Render environment variable orqali
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
+# pygame ishga tushirish
+pygame.init()
 
-app = Flask(__name__)
+# Oyna sozlamalari
+WIDTH, HEIGHT = 500, 500
+CELL_SIZE = 50
+ROWS = COLS = 10
 
-@app.route('/')
-def home():
-    return "Bot ishlayapti ✅"
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Hello my game")
 
-@app.route('/send', methods=['POST'])
-def send_message():
-    data = request.json
-    user_id = data.get('user_id')
-    text = data.get('text')
-    asyncio.run(bot.send_message(user_id, text))
-    return "Yuborildi", 200
+clock = pygame.time.Clock()
 
-async def start_bot():
-    await dp.start_polling(bot)
+# Ranglar
+WHITE = (255, 255, 255)
+GRAY = (200, 200, 200)
+BLUE = (0, 100, 255)
 
-def run_bot():
-    asyncio.run(start_bot())
+# O‘yinchi boshlang‘ich joyi (katak bo‘yicha)
+player_x = 0
+player_y = 0
 
-if __name__ == '__main__':
-    threading.Thread(target=run_bot).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+def draw_grid():
+    for x in range(0, WIDTH, CELL_SIZE):
+        pygame.draw.line(screen, GRAY, (x, 0), (x, HEIGHT))
+    for y in range(0, HEIGHT, CELL_SIZE):
+        pygame.draw.line(screen, GRAY, (0, y), (WIDTH, y))
+
+# Asosiy o‘yin sikli
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT and player_x > 0:
+                player_x -= 1
+            if event.key == pygame.K_RIGHT and player_x < COLS - 1:
+                player_x += 1
+            if event.key == pygame.K_UP and player_y > 0:
+                player_y -= 1
+            if event.key == pygame.K_DOWN and player_y < ROWS - 1:
+                player_y += 1
+
+    # Chizish
+    screen.fill(WHITE)
+    draw_grid()
+
+    # O‘yinchi (kvadrat)
+    pygame.draw.rect(
+        screen,
+        BLUE,
+        (player_x * CELL_SIZE, player_y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+    )
+
+    pygame.display.update()
+    clock.tick(60)
