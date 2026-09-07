@@ -21,4 +21,4 @@ def worker_action_kb(worker_id: int, is_active: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=status_btn, callback_data=f"toggle_{worker_id}")],
         [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_{worker_id}")],
         [InlineKeyboardButton(text="🔙 Ro'yxatga qaytish", callback_data="list_workers")]
-    ])
+    ]) 
