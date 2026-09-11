@@ -332,6 +332,32 @@ async def cb_reload(call: types.CallbackQuery):
 
 # ==================== 8. GURUHDAGI TOPSHIRIQ ====================
 
+async def send_split_message(bot: Bot, chat_id: int, header: str, content: str, temp_msg_id: int = None):
+    """Telegramning 4096 belgilik cheklovini aylanib o'tish uchun matnni bo'lib yuborish"""
+    full_text = f"{header}\n\n{content}"
+    MAX_LEN = 4000  # Xavfsizlik uchun 4000 belgidan bo'lamiz
+
+    # Matnni 4000 belgilik qismlarga ajratamiz
+    chunks = [full_text[i:i + MAX_LEN] for i in range(0, len(full_text), MAX_LEN)]
+
+    # 1-qism bilan 'Bajarmoqdaman...' xabarini yangilaymiz
+    if temp_msg_id and chunks:
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=temp_msg_id,
+                text=chunks[0]
+            )
+            chunks = chunks[1:]
+        except Exception:
+            await bot.send_message(chat_id=chat_id, text=chunks[0])
+            chunks = chunks[1:]
+
+    # Agar javob juda katta bo'lsa, qolgan qismlarini ketma-ket yangi xabar qilib yuboramiz
+    for chunk in chunks:
+        await asyncio.sleep(0.5)
+        await bot.send_message(chat_id=chat_id, text=chunk)
+
 @dp.message(Command("task"))
 async def handle_team_task(message: types.Message):
     task = message.text.replace("/task", "").strip()
@@ -351,14 +377,19 @@ async def handle_team_task(message: types.Message):
             temp_msg = await bot_instance.send_message(chat_id, f"{worker['emoji']} **[{worker['name']}]**: Bajarmoqdaman...")
             prompt_input = f"Topshiriq: {task}\nO'z sohang bo'yicha aniq, professional yechim tayyorla."
             result = await ask_agent(worker["prompt"], prompt_input)
-            await bot_instance.edit_message_text(
+            
+            # Xabarni xavfsiz bo'lib yuboramiz:
+            await send_split_message(
+                bot=bot_instance,
                 chat_id=chat_id,
-                message_id=temp_msg.message_id,
-                text=f"{worker['emoji']} **[{worker['name']}]**:\n\n{result}"
+                header=f"{worker['emoji']} **[{worker['name']}]**:",
+                content=result,
+                temp_msg_id=temp_msg.message_id
             )
             await asyncio.sleep(1.5)
         except Exception as e:
             print(f"Xatolik {worker['name']} xabar yuborishida: {e}")
+
 
 # ==================== 9. ISHGA TUSHIRISH ====================
 
