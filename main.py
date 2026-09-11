@@ -124,8 +124,11 @@ async def ask_agent(system_prompt: str, user_prompt: str) -> str:
     if not client:
         return "Xatolik: GEMINI_API_KEY o'rnatilmagan!"
     
-    # Yangi va bepul modellar ro'yxati (biri ishlamasa, keyingisiga avtomatik o'tadi)
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
+    # Hozirgi rasmiy faol modellar:
+    models_to_try = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash"
+    ]
     
     last_error = ""
     for model_name in models_to_try:
@@ -145,6 +148,63 @@ async def ask_agent(system_prompt: str, user_prompt: str) -> str:
             continue
 
     return f"AI so'rovida xatolik: {last_error}"
+# ==================== BACKUP VA RESTORE ====================
+
+@dp.message(Command("backup"), F.from_user.id == ADMIN_ID)
+async def cmd_backup(message: types.Message):
+    """Bazani Telegramga yuklab yuborish"""
+    if not os.path.exists(DB_NAME):
+        await message.reply("Baza fayli topilmadi!")
+        return
+
+    db_file = FSInputFile(DB_NAME, filename="company_backup.db")
+    workers = await get_all_workers()
+    
+    await message.answer_document(
+        document=db_file,
+        caption=(
+            f"📦 **Baza Zaxira Nusxasi (Backup)**\n\n"
+            f"👥 Saqlangan ishchilar soni: {len(workers)} ta\n\n"
+            f"💡 **Tiklash uchun:** Ushbu faylni botga yuboring yoki unga reply qilib `/restore` deb yozing."
+        )
+    )
+
+@dp.message(Command("restore"), F.from_user.id == ADMIN_ID)
+async def cmd_restore(message: types.Message):
+    """Reply qilingan fayldan bazani tiklash"""
+    if not message.reply_to_message or not message.reply_to_message.document:
+        await message.reply("Tiklash uchun avval `/backup` yuborgan faylga **Reply** qilib `/restore` deb yozing.")
+        return
+
+    doc = message.reply_to_message.document
+    if not doc.file_name.endswith(".db"):
+        await message.reply("Faqat `.db` formatidagi faylni tiklash mumkin!")
+        return
+
+    # Yangi faylni yuklab olib, company.db ustiga yozish
+    await master_bot.download(doc, destination=DB_NAME)
+    
+    # Botlarni xotiraga qayta yuklash
+    await reload_active_workers()
+    workers = await get_active_workers()
+    
+    await message.answer(
+        f"✅ **Baza muvaffaqiyatli tiklandi!**\n\n"
+        f"Xotiraga {len(workers)} ta ishchi bot yuklandi va jamoa faollashdi."
+    )
+
+@dp.message(F.document, F.from_user.id == ADMIN_ID)
+async def handle_db_upload(message: types.Message):
+    """Agar admin to'g'ridan-to'g'ri .db fayl yuborsa ham tiklash"""
+    if message.document.file_name.endswith(".db"):
+        await master_bot.download(message.document, destination=DB_NAME)
+        await reload_active_workers()
+        workers = await get_active_workers()
+        await message.reply(
+            f"✅ **Baza qabul qilindi va tiklandi!**\n\n"
+            f"Yuklangan faol ishchilar soni: {len(workers)} ta."
+        )
+
 
 # ==================== 4. TUGMALAR (KEYBOARDS) ====================
 def main_admin_kb():
