@@ -447,4 +447,57 @@ async def handle_team_task(message: types.Message):
             except Exception as e:
                 print(f"Xatolik {worker['name']} da: {e}")
 
-@dp.m
+@dp.message(F.chat.type.in_(["group", "supergroup"]))
+async def handle_group_mentions(message: types.Message, bot: Bot):
+    """Guruhda biror ishchi botga reply qilinganda yoki uning username'i yozilganda javob berishi"""
+    if not message.text:
+        return
+
+    # Qaysi botga murojaat qilinayotganini aniqlaymiz
+    target_worker = None
+    
+    # 1. Agar xabarga Reply qilingan bo'lsa:
+    if message.reply_to_message and message.reply_to_message.from_user:
+        replied_id = message.reply_to_message.from_user.id
+        target_worker = next((w for w in active_workers.values() if w["id"] == replied_id), None)
+    
+    # 2. Agar @username orqali tag qilingan bo'lsa:
+    if not target_worker:
+        for w in active_workers.values():
+            if w.get("username") and f"@{w['username']}".lower() in message.text.lower():
+                target_worker = w
+                break
+
+    # Faqat murojaat qilingan bot o'z nomidan javob beradi
+    if target_worker and target_worker["bot"].token == bot.token:
+        wait_msg = await message.reply(f"{target_worker['emoji']} Savolingizni ko'rib chiqyapman...")
+        result = await ask_agent(target_worker["prompt"], message.text)
+        await send_split_message(
+            bot=target_worker["bot"],
+            chat_id=message.chat.id,
+            header=f"{target_worker['emoji']} **[{target_worker['name']}]**:",
+            content=result,
+            temp_msg_id=wait_msg.message_id
+        )
+
+# ==================== 11. ISHGA TUSHIRISH (MULTI-BOT POLLING) ====================
+
+async def main():
+    await init_db()
+    await reload_active_workers()
+    await master_bot.delete_webhook(drop_pending_updates=True)
+
+    # Boshliq bot va barcha ishchi botlarni bir vaqtda tinglashga qo'yamiz!
+    all_bots = [master_bot]
+    for w in active_workers.values():
+        try:
+            await w["bot"].delete_webhook(drop_pending_updates=True)
+            all_bots.append(w["bot"])
+        except Exception as e:
+            print(f"Webhook tozalashda xatolik: {e}")
+
+    print(f"🚀 Boshliq Bot va {len(active_workers)} ta ishchi bot birgalikda to'liq ishga tushdi!")
+    await dp.start_polling(*all_bots)
+
+if __name__ == "__main__":
+    asyncio.run(main())
