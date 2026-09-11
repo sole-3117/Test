@@ -123,15 +123,28 @@ async def delete_worker(worker_id: int):
 async def ask_agent(system_prompt: str, user_prompt: str) -> str:
     if not client:
         return "Xatolik: GEMINI_API_KEY o'rnatilmagan!"
-    try:
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=user_prompt,
-            config={"system_instruction": system_prompt, "temperature": 0.7}
-        )
-        return response.text.strip() if response.text else "Javob hosil qilinmadi."
-    except Exception as e:
-        return f"AI so'rovida xatolik: {e}"
+    
+    # Yangi va bepul modellar ro'yxati (biri ishlamasa, keyingisiga avtomatik o'tadi)
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
+    
+    last_error = ""
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_prompt,
+                config={
+                    "system_instruction": system_prompt,
+                    "temperature": 0.7
+                }
+            )
+            if response.text:
+                return response.text.strip()
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    return f"AI so'rovida xatolik: {last_error}"
 
 # ==================== 4. TUGMALAR (KEYBOARDS) ====================
 def main_admin_kb():
